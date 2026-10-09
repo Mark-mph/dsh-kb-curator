@@ -365,7 +365,8 @@ function Cmd-Status {
     $queueCount = @(Get-QueueFiles).Count
     $approvedCount = @(Get-ChildItem -LiteralPath (Join-Path $script:KbRoot '_review\approved') -File -ErrorAction SilentlyContinue).Count
     $rejectedCount = @(Get-ChildItem -LiteralPath (Join-Path $script:KbRoot '_review\rejected') -File -ErrorAction SilentlyContinue).Count
-    $inboxCount = @(Get-ChildItem -LiteralPath (Join-Path $script:KbRoot '_inbox') -File -ErrorAction SilentlyContinue).Count
+    # 只数真正待处理的 L0 资料：*.meta.md 是 add 生成的初始元数据，不是一份资料
+    $inboxCount = @(Get-ChildItem -LiteralPath (Join-Path $script:KbRoot '_inbox') -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike '*.meta.md' }).Count
     $pageCount = @(Get-ChildItem -LiteralPath (Join-Path $script:KbRoot 'pages') -File -ErrorAction SilentlyContinue).Count
     $logLines = 0
     $lp = Join-Path $script:KbRoot '_system\log.jsonl'
@@ -855,21 +856,67 @@ function Cmd-Reject([string]$id) {
     # L1 材料移入 _inbox/_rejected/（用户原文件始终不动）
     $inboxRel = Pick $fm 'inbox_path' ''
     $moved = ''
+    $movedMeta = ''
     if ($inboxRel) {
         $inboxAbs = Join-Path $script:KbRoot ($inboxRel -replace '/', '\')
         if (Test-Path -LiteralPath $inboxAbs) {
             $rejInbox = Join-Path $script:KbRoot '_inbox\_rejected'
             Ensure-Dir $rejInbox | Out-Null
+            $ext = [System.IO.Path]::GetExtension($inboxAbs)
             $t = Join-Path $rejInbox ([System.IO.Path]::GetFileName($inboxAbs))
             $k2 = 2
-            while (Test-Path -LiteralPath $t) { $t = Join-Path $rejInbox ([System.IO.Path]::GetFileNameWithoutExtension($inboxAbs) + '-' + $k2 + '.md'); $k2++ }
+            while (Test-Path -LiteralPath $t) { $t = Join-Path $rejInbox ([System.IO.Path]::GetFileNameWithoutExtension($inboxAbs) + '-' + $k2 + $ext); $k2++ }
             Move-Item -LiteralPath $inboxAbs -Destination $t
             $moved = $t.Substring($script:KbRoot.Length + 1)
             Write-Info ('[材料] L0 副本已移入 ' + $moved + '（用户原文件未改动）')
+            # add 生成的初始元数据跟着一起归档，否则 _inbox/ 会留下指向已搬走文件的孤儿 *.meta.md
+            # 命名规则（见 Cmd-Add）：L0 = <id>-<slug>.md，元数据 = <id>-<slug>.meta.md
+            $metaAbs = [System.IO.Path]::ChangeExtension($inboxAbs, '.meta.md')
+            if (-not (Test-Path -LiteralPath $metaAbs)) {
+                $inbDir = Join-Path $script:KbRoot '_inbox'
+                $altM = @(Get-ChildItem -LiteralPath $inbDir -File -Filter ($id + '*.meta.md') -ErrorAction SilentlyContinue | Select-Object -First 1)
+                if ($altM.Count -gt 0) { $metaAbs = $altM[0].FullName }
+            }
+            if (Test-Path -LiteralPath $metaAbs) {
+                $metaDst = [System.IO.Path]::ChangeExtension($t, '.meta.md')
+                Move-Item -LiteralPath $metaAbs -Destination $metaDst
+                $movedMeta = $metaDst.Substring($script:KbRoot.Length + 1)
+                Write-Info ('[材料] 初始元数据已移入 ' + $movedMeta)
+            }
         }
     }
     Write-Info '   该提案从未写入 L1（仅批准后才落盘 library/），未写 engram、未改知识页。'
-    Write-KbLog 'reject' $id ('reason=' + $Reason + ';archive=' + $archRel + ';inbox=' + $moved) @{ id = $id; by = 'user'; l2_pending = $false }
+    Write-KbLog 'reject' $id ('reason=' + $Reason + ';archive=' + $archRel + ';inbox=' + $moved + ';meta=' + $movedMeta) @{ id = $id; by = 'user'; l2_pending = $false }
+}
+
+function Get-CommentLineNumbers([string]$path) {
+    # 返回文件里落在 HTML 注释（<!-- ... -->）内部的 1-based 行号集合。
+    # 知识页模板把「怎么写」的说明放在注释里，那些字不是知识，search 不该命中。
+    $set = New-Object 'System.Collections.Generic.HashSet[int]'
+    $t = Read-Text $path
+    $depth = 0
+    $line = 1
+    $i = 0
+    $n = $t.Length
+    while ($i -lt $n) {
+        $c = $t[$i]
+        if ($c -eq "`n") { $line++; $i++; continue }
+        if ($depth -gt 0) { [void]$set.Add($line) }
+        if ($c -eq '<' -and ($i + 3) -lt $n -and $t.Substring($i, 4) -eq '<!--') { $depth++; $i += 4; continue }
+        if ($c -eq '-' -and ($i + 2) -lt $n -and $t.Substring($i, 3) -eq '-->') { if ($depth -gt 0) { $depth-- }; $i += 3; continue }
+        $i++
+    }
+    # 注意前缀逗号：PowerShell 会把返回的集合拆成一个个元素（空集合更会变成 $null），
+    # 调用方拿到 null 后再 .Contains() 就会炸。逗号包一层才拿得到 HashSet 本身。
+    return ,$set
+}
+
+function Test-ScaffoldLine([string]$line) {
+    # 整行就是一个尖括号占位符（可带 ## / > / - / 数字序号前缀）→ 脚手架，不是知识。
+    $s = $line.Trim()
+    $s = $s -replace '^[#>\-\*\s]+', ''
+    $s = $s -replace '^\d+[\.\)]\s*', ''
+    return ($s -match '^<.+>$')
 }
 
 function Cmd-Search([string]$query) {
@@ -885,14 +932,24 @@ function Cmd-Search([string]$query) {
         Write-Info '流程：kb.cmd add -Path <资料文件> → agent 写提案 → 用户批准 → 才会进 library/。'
         return
     }
-    $hits = @($files | Select-String -Pattern $query -SimpleMatch -ErrorAction SilentlyContinue)
+    $rawHits = @($files | Select-String -Pattern $query -SimpleMatch -ErrorAction SilentlyContinue)
+    $commentCache = @{}
+    $hits = @($rawHits | Where-Object {
+        $p = $_.Path
+        if (-not $commentCache.ContainsKey($p)) { $commentCache[$p] = Get-CommentLineNumbers $p }
+        if ($commentCache[$p].Contains([int]$_.LineNumber)) { return $false }
+        return (-not (Test-ScaffoldLine $_.Line))
+    })
+    $scaffoldSkipped = $rawHits.Count - $hits.Count
     if ($hits.Count -eq 0) {
         Write-Info ('未在 L1 原文库 / L3 知识页 / 待审队列中命中「' + $query + '」。')
+        if ($scaffoldSkipped -gt 0) { Write-Info ('（另有 ' + $scaffoldSkipped + ' 处只命中知识页脚手架或模板注释，已忽略——那不是知识。）') }
         Write-Info '建议：① 换关键词再搜；② 用 engram 混合检索（L2）；③ 联网补齐后走审核流程再入库。'
-        Write-KbLog 'search' $query 'hits=0' @{ by = 'agent'; l2_pending = $false }
+        Write-KbLog 'search' $query ('hits=0;scaffold_skipped=' + $scaffoldSkipped) @{ by = 'agent'; l2_pending = $false }
         return
     }
     Write-Ok ('命中 ' + $hits.Count + ' 处（L1 原文库 / L3 知识页 / 待审队列）：')
+    if ($scaffoldSkipped -gt 0) { Write-Info ('（已忽略 ' + $scaffoldSkipped + ' 处知识页脚手架 / 模板注释命中）') }
     Write-Info ''
     foreach ($g in ($hits | Group-Object Path)) {
         $rel = $g.Name.Substring($script:KbRoot.Length + 1)
@@ -906,7 +963,7 @@ function Cmd-Search([string]$query) {
     }
     Write-Info ''
     Write-Info '注意：这里是字面检索，结果是「原文位置」；回答问题时请用 L2 engram 检索 + 仲裁算法（_system/arbitration.md），并带 [src:<id>] 引用。'
-    Write-KbLog 'search' $query ('hits=' + $hits.Count) @{ by = 'agent'; l2_pending = $false }
+    Write-KbLog 'search' $query ('hits=' + $hits.Count + ';scaffold_skipped=' + $scaffoldSkipped) @{ by = 'agent'; l2_pending = $false }
 }
 
 function Cmd-Page([string]$cat) {
