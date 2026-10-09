@@ -1,0 +1,75 @@
+# 优先级与来源等级 priority（冻结契约 v1 §1 / §3 / §5）
+
+# 本文件只定义「数值与规则」，不定义算法流程。算法流程见 `arbitration.md`（严格对应契约 §5）。
+# 注意顺序（v1.1）：仲裁第 4 步是「正误推理」——先判资料正误，判不出才落到本文件的数值链（来源等级 → priority → confidence）。
+# 用户尚未规定优先级：本文件的 priority 含义/规则只是 agent 的默认参考，不是用户规定；当前由 agent 自行推理判断（见下方 priority_provenance）。
+# 所有字段可被用户在审核时直接修改；用户改过的值即最终值，agent 不得擅自回改。
+# （本文件按 YAML 解析：正文说明一律用 # 注释，不要用 md 的 > 引用块——`>` 在行首会被 YAML 当成折叠标量，导致整份文件解析失败。）
+
+version: 1
+
+## 来源等级（仲裁第 5 步使用，数值越大越优先；第 4 步正误推理先跑，谬误条目在比等级之前就被剔除）
+source_rank:
+  user_provided: 100        # 用户自己提供的资料：本地文件（source_type=user_file）、用户口述（user_text）
+  user_approved_web: 60     # 联网搜索得到、并经用户审核批准入库的条目
+  unapproved_web: 20        # 未审核的联网搜索结果：**不参与裁定**，只能作「补充视角」附在答案末尾并标注未审核
+source_type_to_rank:
+  user_file: 100
+  user_text: 100
+  web: 60                   # web 只有在 status=approved/indexed 时才是 60；未审核的联网结果一律按 20 处理
+
+## 优先级 priority（仲裁第 6 步使用，5 最高）
+# ⚠️ 用户尚未规定优先级（用户原话：「现阶段我还没有规定优先级，请自行推理判断」）。
+#    因此下面的 meaning/rules 只是**agent 的默认参考**，不是用户规定：
+#    · agent 必须自行推理判断每条资料的 priority，并在提案里标注 by: agent、pending_user: true
+#    · 用户一旦给出优先级规定（无论何种形式），以用户规定为准，并把 pending_user 置 false
+#    · 用户手动设置的值即最终值，agent 不得擅自回改
+priority_provenance:
+  user_defined: false                # 用户尚未规定优先级
+  by: agent                          # 当前由 agent 自行推理判断
+  pending_user: true                 # 等用户给出优先级规定后置 false
+  must_annotate_in_proposal: true    # 提案 frontmatter 必须带 by: agent / pending_user: true
+  on_user_rules_given: 以用户规定为准；agent 不得自行回改用户设置的值
+
+priority_scale:
+  range: [1, 5]
+  default: 3
+  meaning:
+    5: 用户明确指定的最高优先（例如「这条以我说的为准」）
+    4: 用户强调重要，或来源为权威一手资料
+    3: 默认值
+    2: 次要、补充性资料
+    1: 最低，仅供参考
+  rules:
+    - 用户提供且用户明确强调的资料，默认给 4-5
+    - 联网搜索资料默认不超过 3
+    - 用户手动设置的值覆盖 agent 的建议值
+    - 用户尚未规定优先级之前：以上只是 agent 的推理依据，提案中必须标注 by=agent、pending_user=true
+
+## 置信度 confidence（仲裁第 7 步使用）
+confidence_scale:
+  range: [0, 1]
+  default: 0.8
+  rules:
+    - 用户亲自提供/确认：0.9 - 1.0
+    - 用户审核通过的联网资料：0.7 - 0.9
+    - 未审核联网结果：0.3 - 0.6（且不参与裁定）
+    - 资料内部含不确定措辞（「据说」「可能」）、或存在时效风险：下调 0.1 - 0.3
+    - 用户手动设置的值覆盖 agent 的建议值
+
+## 同分处理顺序（对应仲裁第 5、6、7 步；第 4 步正误推理已在此之前完成）
+tie_break_order:
+  - source_rank     # 大者胜
+  - priority        # 大者胜
+  - confidence      # 大者胜
+
+## 兜底
+fallback:
+  outcome: conflict         # 第 8 步：仍无法分出胜负 → 不选边，标记冲突并送 _review/queue/
+  on_conflict: [mark_conflicted, create_conflict_proposal, disclose_in_answer]
+
+## 时效（仲裁第 3 步使用）
+validity:
+  valid_until_passed: 剔除          # valid_until < now → 剔除，不参与裁定
+  valid_from_future: 未来条目        # valid_from > now → 不参与裁定，但要在提示中列出
+  empty_valid_until: 长期有效

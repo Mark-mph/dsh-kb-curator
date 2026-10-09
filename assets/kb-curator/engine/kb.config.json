@@ -1,0 +1,33 @@
+{
+  "name": "智能知识储备体系",
+  "version": "1.0.0",
+  "root": ".",
+  "root_note": "说明性字段，程序不读取。真正的知识库根目录是 kb.ps1 所在目录（脚本用 $PSScriptRoot 自定位），因此整个目录搬家无需改脚本。其他相对路径字段（_inbox/ library/ pages/ _review/ _staging/ _sources/）都相对该目录解析。",
+  "default_category": "未分类",
+  "default_subcategory": "通用",
+  "categories": [
+    "技术工程",
+    "产品业务",
+    "学术研究",
+    "生活健康",
+    "财务投资",
+    "人文社科",
+    "工具流程",
+    "未分类"
+  ],
+  "l2_scope_default": "user",
+  "l2_kinds": ["fact", "preference", "decision", "episode", "skill"],
+  "require_approval_before_l2_l3": true,
+  "paid_services_allowed": false,
+  "forbidden_services": ["Hindsight 云", "商用嵌入 API", "Jev"],
+  "storage": {
+    "warn_free_gb": 20,
+    "block_free_gb": 5,
+    "note": "知识库所在磁盘剩余空间低于 warn_free_gb 时 kb.cmd 每次收料都会告警并提醒用户；低于 block_free_gb 时直接拒绝收料（exit 1）。硬性约束：所在盘快存满必须提前告知用户。"
+  },
+  "id_format": "kb-<yyyymmdd>-<4位序号>",
+  "proposal_path": "_review/queue/<id>.md",
+  "library_path": "library/<大类>/<子类>/<yyyy-mm-dd>-<slug>.md",
+  "page_path": "pages/<大类>.md",
+  "log_path": "_system/log.jsonl"
+}

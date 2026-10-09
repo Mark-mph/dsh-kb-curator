@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# Logs
+*.log
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Local scratch space used while assembling a release
+.build/

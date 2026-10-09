@@ -1,0 +1,9 @@
+# This bundle's composition layer: mounted when a profile lists this bundle
+# (`dsh plugin add dsh-kb-curator`). The row references this package by name so
+# Node module resolution finds the installed code instead of a source path.
+#
+# Available config: none. The bundled skill is always registered when the
+# bundle is mounted; disable the plugin row to drop it.
+- insert:
+    - id: kb-curator
+      name: 'dsh-kb-curator'

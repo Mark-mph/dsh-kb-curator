@@ -1,0 +1,6 @@
+* text=auto eol=lf
+
+# The shipped engine must stay byte-exact: kb.ps1 relies on a UTF-8 BOM, kb.cmd must
+# remain pure ASCII, and scripts/check-assets.mjs asserts exact bytes. Never let git
+# normalize anything under this directory.
+assets/kb-curator/engine/** -text
