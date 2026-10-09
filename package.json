@@ -1,6 +1,6 @@
 {
   "name": "dsh-kb-curator",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Installable DeepSeek Harness bundle contributing the kb-curator skill: a local, three-layer knowledge base (L1 originals, L2 memory, L3 topic pages) with a mandatory human review gate, source-ranked conflict arbitration, and a bundled dependency-free PowerShell engine.",
   "publishConfig": {
     "access": "public"
