@@ -76,8 +76,6 @@ dsh-kb-curator/
 │  └─ index.js                   注册这个 bundled 只读技能 provider
 ├─ scripts/
 │  └─ check-assets.mjs           仓库自检脚本（见「开发与自检」）
-├─ .github/
-│  └─ workflows/ci.yml           push 与 PR 时自动跑上面这个自检
 ├─ assets/kb-curator/            技能的资源基目录
 │  ├─ SKILL.md                   技能正文：frontmatter 里的 name + description
 │  ├─ references/                7 份按需加载的参考文档
@@ -89,7 +87,7 @@ dsh-kb-curator/
 │  │  ├─ learning.md             消化层五要素与知识页结构
 │  │  └─ review-workflow.md      五状态流转、提案字段、批准后谁做什么
 │  └─ engine/                    把整个目录复制到你的知识库根目录
-│     ├─ kb.ps1                  真正实现，994 行
+│     ├─ kb.ps1                  真正实现
 │     ├─ kb.cmd                  ASCII 包装器，唯一推荐入口
 │     ├─ kb.config.json          大类清单、默认值、付费开关、磁盘阈值
 │     ├─ README.md               引擎自己的使用说明
@@ -308,6 +306,8 @@ node scripts/check-assets.mjs
 5. **引擎骨架自洽**——`kb.config.json` 能解析、大类非空、提醒线高于拒绝线，`_system/log.jsonl` 随包为空，`cordis.patch.yml` 挂载的包名与 `package.json` 里声明的一致。
 
 `npm test` 与 `npm run check` 都指向同一个脚本。
+
+仓库里目前没有 CI workflow——提交前请在本地跑这个自检。要添加 `.github/workflows/` 需要带 `workflow` scope 的 token，这就是自检尚未自动化的原因。
 
 ## 许可
 

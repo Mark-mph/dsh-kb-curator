@@ -76,8 +76,6 @@ dsh-kb-curator/
 │  └─ index.js                   registers the bundled read-only skill provider
 ├─ scripts/
 │  └─ check-assets.mjs           repository self-check (see Self-check)
-├─ .github/
-│  └─ workflows/ci.yml           runs the self-check on push and pull request
 ├─ assets/kb-curator/            the skill's resource base
 │  ├─ SKILL.md                   skill body; frontmatter name + description
 │  ├─ references/                seven reference documents loaded on demand
@@ -89,7 +87,7 @@ dsh-kb-curator/
 │  │  ├─ learning.md             the five-element digestion layer and page structure
 │  │  └─ review-workflow.md      five states, proposal fields, who writes what after approval
 │  └─ engine/                    copy this whole directory to your knowledge base root
-│     ├─ kb.ps1                  the implementation, 994 lines
+│     ├─ kb.ps1                  the implementation
 │     ├─ kb.cmd                  ASCII wrapper and the recommended entry point
 │     ├─ kb.config.json          categories, defaults, paid-service switch, disk thresholds
 │     ├─ README.md               the engine's own manual
@@ -308,6 +306,8 @@ It verifies:
 5. **Engine scaffold coherence** — `kb.config.json` parses, its categories are non-empty, its warn threshold sits above its block threshold, `_system/log.jsonl` ships empty, and `cordis.patch.yml` mounts the package name declared in `package.json`.
 
 `npm test` and `npm run check` are wired to the same script.
+
+There is no CI workflow in this repository yet — run the self-check locally before committing. Adding `.github/workflows/` requires a token with the `workflow` scope, which is why this check is not automated here.
 
 ## License
 
